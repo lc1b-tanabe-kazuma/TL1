@@ -143,11 +143,6 @@ class MYADDON_OT_export_scene(bpy.types.Operator,bpy_extras.io_utils.ExportHelpe
         for i in range(level):
             indent += "\t"
 
-            self.write_and_print(
-            file,
-            indent + object.type + "-" + object.name
-            )
-
         #トランスフォーム情報
         self.write_and_print(file,indent + "Trans(%f,%f,%f)" % (trans.x,trans.y,trans.z))
         self.write_and_print(file,indent +"Rot(%f,%f,%f)" % (rot.x,rot.y,rot.z))
