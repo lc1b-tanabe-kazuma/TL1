@@ -127,7 +127,12 @@ class MYADDON_OT_export_scene(bpy.types.Operator,bpy_extras.io_utils.ExportHelpe
     def parse_scene_recursive(self,file,object,level):
         """シーン解析再帰関数"""
 
-        self.write_and_print(file, object.type + "-"+object.name)
+        #深さ分インデントする
+        indent = ""
+        for i in range(level):
+            indent += "\t"
+
+        self.write_and_print(file,indent + object.type)
         trans, rot, scale= object.matrix_local.decompose()
 
         #
@@ -138,20 +143,51 @@ class MYADDON_OT_export_scene(bpy.types.Operator,bpy_extras.io_utils.ExportHelpe
         rot.y = math.degrees(rot.y)
         rot.z = math.degrees(rot.z)
 
-        #深さ分インデントする
-        indent = ""
-        for i in range(level):
-            indent += "\t"
-
         #トランスフォーム情報
         self.write_and_print(file,indent + "Trans(%f,%f,%f)" % (trans.x,trans.y,trans.z))
         self.write_and_print(file,indent +"Rot(%f,%f,%f)" % (rot.x,rot.y,rot.z))
         self.write_and_print(file,indent +"Scale(%f,%f,%f)" % (scale.x,scale.y,scale.z))
+        
+        #カスタムプロパティを追加
+        if "file_name" in object:
+            self.write_and_print(file, indent + "N %s" % object["file_name"])
+        self.write_and_print(file,indent+'END')
         self.write_and_print(file,"")
 
         #子ノードに進む
         for child in object.children:
             self.parse_scene_recursive(file,child,level +1)
+
+class OBJECT_PT_file_name(bpy.types.Panel):
+    """オブジェクトのファイルネームパネル"""
+    bl_idname = "OBJECT_PT_file_name"
+    bl_label = "FileName"
+    bl_space_type = "PROPERTIES"
+    bl_region_type = "WINDOW"
+    bl_context = "object"
+
+    #サブメニューの描画
+    def draw(self,context):
+        #パネルに項目を追加
+        if "file_name" in context.object:
+            #既にプロパティがあれば表示
+            self.layout.prop(context.object,'["file_name"]',text=self.bl_label)
+        else:
+            #プロパティがなければプロパティ追加ボタン表示
+            self.layout.operator(MYADDON_OT_add_filename.bl_idname)
+
+#オペレーター カスタムプロパティ ファイルネーム追加
+class MYADDON_OT_add_filename(bpy.types.Operator):
+    bl_idname = "myaddon.myaddon_ot_add_filename"
+    bl_label = "FileName 追加"
+    bl_description = "['file_name']カスタムプロパティを追加します"
+    bl_options ={"REGISTER","UNDO"}
+
+    def execute(self,context):
+
+        #カスタムプロパティを追加
+        context.object["file_name"] = ""
+        return {"FINISHED"}
 
 #C++でいうここからがメインループ 上がグローバル関数等
 #Blenderに登録するクラスリスト
@@ -160,6 +196,8 @@ classes =(
     MYADDON_OT_create_sphere,
     MYADDON_OT_stretch_vertex,
     TOPBAR_MT_my_menu,
+    MYADDON_OT_add_filename,
+    OBJECT_PT_file_name,
 )
 
 #アドオン有効時のコールバック
