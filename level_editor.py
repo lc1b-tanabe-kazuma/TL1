@@ -5,7 +5,7 @@ import gpu
 import gpu_extras.batch
 import copy
 import mathutils
-
+import json
 
 # ブレンダーに登録するアドオン情報
 bl_info = {
@@ -97,13 +97,13 @@ class MYADDON_OT_export_scene(bpy.types.Operator,bpy_extras.io_utils.ExportHelpe
     bl_label = "シーン出力"
     bl_description = "シーン情報をExportします"
 
-    filename_ext = ".scene"
+    filename_ext = ".json"
 
     def execute(self, context):
 
         print("シーン情報をExportします")
 
-        self.export()
+        self.export_json()
 
         self.report({"INFO"}, "シーン情報をExportしました")
 
@@ -129,6 +129,39 @@ class MYADDON_OT_export_scene(bpy.types.Operator,bpy_extras.io_utils.ExportHelpe
                     continue
                 self.parse_scene_recursive(file,obj,0)
 
+    def export_json(self):
+        """JSON形式でファイルに出力"""
+
+        #保存する情報をまとめるdict
+        json_object_root = dict()
+
+        #ノード名
+        json_object_root["name"] = bpy.context.scene.name
+
+        #オブジェクトリストを作成
+        json_object_root["objects"] = list()
+
+         #シーン内の全オブジェクトについて
+        for obj in bpy.context.scene.objects:
+
+            #親子関係がある場合は親のオブジェクトから再帰的に呼び出す
+            if(obj.parent):
+                continue
+
+            #シーン直下のオブジェクトをルートノードとし再起関数で走査  
+            self.parse_scene_recursive_json(json_object_root["objects"],obj,0)
+
+        #オブジェクトをjson形式にエンコード
+        json_text = json.dumps(json_object_root,ensure_ascii=False, cls=json.JSONEncoder, indent=4) 
+
+        #コンソールに表示
+        print(json_text)
+
+        #ファイルをテキスト形式で書き出し用にオープン
+        with open(self.filepath, "wt", encoding="utf-8") as file:
+            #json形式で書き込み
+            file.write(json_text)
+        
     def parse_scene_recursive(self, file, obj, level):
 
         indent = "\t" * level
@@ -173,6 +206,60 @@ class MYADDON_OT_export_scene(bpy.types.Operator,bpy_extras.io_utils.ExportHelpe
 
         for child in obj.children:
             self.parse_scene_recursive(file, child, level + 1)
+
+    #json用のツリー再起関数
+    def parse_scene_recursive_json(self, data_parent, obj,level):
+
+        #オブジェクトの情報をまとめるdict
+        json_object = dict()
+
+        #ノード名
+        json_object["name"] = obj.name
+
+        #オブジェクトの種類
+        json_object["type"] = obj.type
+
+        #ローカル座標の変換行列を分解
+        trans, rot, scale = obj.matrix_local.decompose()
+
+        #回転を度数法に変換
+        rot = rot.to_euler()
+        rot.x = math.degrees(rot.x)
+        rot.y = math.degrees(rot.y)
+        rot.z = math.degrees(rot.z)
+
+        #トランスフォーム情報をディクショナリに登録
+        transform = dict()
+        transform["translation"] = (trans.x, trans.y, trans.z)
+        transform["rotation"] = (rot.x, rot.y, rot.z)
+        transform["scale"] = (scale.x, scale.y, scale.z)
+
+        #纏めて1個分のjsonオブジェクトに登録
+        json_object["transform"] = transform
+
+        #カスタムプロパティ"file_name"があれば
+        if "file_name" in obj:
+            json_object["file_name"] = obj["file_name"]
+
+        #カスタムプロパティ"collider"があれば
+        if "collider" in obj:
+            collider = dict()
+            collider["type"] = obj["collider"]
+            collider["center"] = obj["collider_center"].to_list()
+            collider["size"] = obj["collider_size"].to_list()
+            json_object["collider"] = collider
+
+        #一個分のjsonオブジェクトを親のオブジェクトに登録
+        data_parent.append(json_object)
+
+        #子ノードがあれば
+        if len(obj.children) > 0:
+            #子ノードリストを作成
+            json_object["children"] = list()
+
+            #子ノードを再起関数で走査
+            for child in obj.children:
+                self.parse_scene_recursive_json(json_object["children"],child,level + 1)
 
 class OBJECT_PT_file_name(bpy.types.Panel):
     """オブジェクトのファイルネームパネル"""
