@@ -73,11 +73,18 @@ class MYADDON_OT_stretch_vertex(bpy.types.Operator):
 
     #メニューを実行した時に呼ばれるコールバック関数
     def execute(self,context):
-        bpy.data.objects["Cube"].data.vertices[0].co.x += 1.0
-        print("頂点を伸ばしました")
+        obj = context.active_object
 
-        #オペレーターの命令終了
-        return {"FINISHED"}
+        # メッシュ以外は処理しない
+        if obj is None or obj.type != 'MESH':
+            self.report({'WARNING'}, "メッシュオブジェクトを選択してください")
+            return {'CANCELLED'}
+
+        obj.data.vertices[0].co.x += 1.0
+
+        print(f"{obj.name} の頂点を伸ばしました")
+
+        return {'FINISHED'}
 
 #オペレーター ICO球生成
 class MYADDON_OT_create_sphere(bpy.types.Operator):
